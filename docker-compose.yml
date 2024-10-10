@@ -1,0 +1,9 @@
+version: '3'
+services:
+  app:
+    image: picrew-bot
+    build: .
+    volumes:
+      - ./state:/app/state
+    env_file:
+      - .env
