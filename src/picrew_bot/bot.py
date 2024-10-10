@@ -1,5 +1,6 @@
 import datetime
 import enum
+import json
 import logging
 import math
 import re
@@ -74,6 +75,8 @@ class Bot:
         self.last_noti_id: int | None = None
         self.current_festival: FestivalConfig | None = None
 
+        self.load()
+
     def run(self):
         sched = BlockingScheduler()
         sched.add_job(self.do_job, 'interval', minutes=1)
@@ -100,6 +103,8 @@ class Bot:
         notifications = self.mastodon.notifications(types=['mention'], since_id=self.last_noti_id)
         for noti in reversed(notifications):
             self.process_mention(noti)
+
+        self.save()
 
     def process_mention(self, notification):
         status = notification.status
@@ -312,6 +317,57 @@ class Bot:
             return acct
         return f'{acct}@{self.domain}'
 
+    def save(self):
+        states = {
+            'last_noti_id': self.last_noti_id,
+            'current_festival': {
+                'request_noti_id': self.current_festival.request_noti_id,
+                'picrew_link': self.current_festival.picrew_link,
+                'description': self.current_festival.description,
+                'prepare_end': self.current_festival.prepare_end.isoformat(),
+                'name_reveal_at': self.current_festival.name_reveal_at.isoformat(),
+                'answer_reveal_at': self.current_festival.answer_reveal_at.isoformat(),
+                'allow_multi': self.current_festival.allow_multi,
+                'state': self.current_festival.state.name,
+                'entries': list(self.current_festival.entries),
+                'prepare_status_id': self.current_festival.prepare_status_id,
+                'question_status_id': self.current_festival.question_status_id,
+                'entries_status_id': self.current_festival.entries_status_id,
+            } if self.current_festival else None
+        }
+
+        self.logger.debug(f'Saving states: {states}')
+
+        with open(common.STATE_PATH, 'w') as f:
+            json.dump(states, f)
+
+    def load(self):
+        try:
+            with open(common.STATE_PATH, 'r') as f:
+                states = json.load(f)
+                self.logger.debug(f'Loaded states: {states}')
+                self.last_noti_id = states['last_noti_id']
+                if current_festival := states['current_festival']:
+                    self.current_festival = FestivalConfig(
+                        current_festival['request_noti_id'],
+                        current_festival['picrew_link'],
+                        current_festival['description'],
+                        datetime.datetime.fromisoformat(current_festival['prepare_end']),
+                        datetime.datetime.fromisoformat(current_festival['name_reveal_at']),
+                        datetime.datetime.fromisoformat(current_festival['answer_reveal_at']),
+                        current_festival['allow_multi'],
+                        FestivalState[current_festival['state']],
+                        set(current_festival['entries']),
+                        current_festival['prepare_status_id'],
+                        current_festival['question_status_id'],
+                        current_festival['entries_status_id'],
+                    )
+
+            self.logger.info(f'States loaded: {self.last_noti_id} {self.current_festival}')
+
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+
     @classmethod
     def parse_festival_schedule(cls, content, abstime) \
             -> tuple[datetime.datetime, datetime.datetime, datetime.datetime]:
@@ -326,7 +382,8 @@ class Bot:
             name_reveal_at = abstime + datetime.timedelta(minutes=NAME_REVEAL_MINUTES)
 
         if answer_reveal := cls.RE_ANSWER_REVEAL.search(content):
-            answer_reveal_at = cls.parse_time(name_reveal_at, answer_reveal.group('time'), default_min=ANSWER_REVEAL_MINUTES)
+            answer_reveal_at = cls.parse_time(
+                name_reveal_at, answer_reveal.group('time'), default_min=ANSWER_REVEAL_MINUTES)
         else:
             answer_reveal_at = abstime + datetime.timedelta(minutes=ANSWER_REVEAL_MINUTES)
 
