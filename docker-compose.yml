@@ -1,9 +1,13 @@
-version: '3'
 services:
   app:
     image: picrew-bot
     build: .
+    restart: unless-stopped
     volumes:
       - ./state:/app/state
     env_file:
       - .env
+    environment:
+      - TZ=Asia/Seoul
+    dns:
+      - 1.1.1.1
