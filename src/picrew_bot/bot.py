@@ -119,18 +119,18 @@ class Bot:
             else:
                 self.logger.info('Existing festival is not ended yet')
                 # Mention that festival already running
-                msg = messages.ALREADY_RUNNING
+                msg = f'@{status.account.acct} {messages.ALREADY_RUNNING}'
                 self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
         elif status.media_attachments:
             if not self.current_festival:
                 self.logger.info(f'Image detected: {status.id}, But no festival is running')
                 # Mention that no festival is running
-                msg = messages.NO_RUNNING
+                msg = f'@{status.account.acct} {messages.NO_RUNNING}'
                 self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
             elif self.current_festival.state != FestivalState.PREPARE:
                 self.logger.info(f'Image detected: {status.id}, But not in prepare state')
                 # Mention that not in prepare state
-                msg = messages.NOT_IN_PREPARE
+                msg = f'@{status.account.acct} {messages.NOT_IN_PREPARE}'
                 self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
             else:
                 self.logger.info(f'Image detected: {status.id}')
@@ -214,17 +214,11 @@ class Bot:
         # Generate question/answer image
         drawer.generate_images(images)
 
-        # Forge status with question image
-        media = self.upload_media(common.QUESTION_IMAGE_PATH)
-        msg = messages.QUESTION
-
         also_reveal_entries = self.current_festival.name_reveal_at == self.current_festival.prepare_end
 
-        if also_reveal_entries:
-            # Append entries to the status
-            msg += '\n' + messages.entries(list(self.current_festival.entries))
-
-        msg += '\n\n' + ' '.join(messages.HASHTAGS)
+        # Forge status with question image
+        media = self.upload_media(common.QUESTION_IMAGE_PATH)
+        msg = messages.question(list(self.current_festival.entries) if also_reveal_entries else None)
 
         status_id = self.mastodon.status_post(
             msg,
@@ -259,7 +253,6 @@ class Bot:
         # Post status with answer image
         media = self.upload_media(common.ANSWER_IMAGE_PATH)
         msg = messages.ANSWER
-        msg += '\n\n' + ' '.join(messages.HASHTAGS)
 
         self.mastodon.status_post(
             msg,
@@ -283,19 +276,14 @@ class Bot:
         if name_reveal_at == prepare_end:
             name_reveal_at = messages.NAME_REVEALED_AT_SAME_TIME
 
-        msg = messages.TPL_FESTIVAL_STARTED.format(
+        msg = messages.festival_started(
             requester=requester,
             prepare_end=prepare_end,
             name_reveal_at=name_reveal_at,
             answer_reveal_at=answer_reveal_at,
-            picrew_link=picrew_link
+            picrew_link=picrew_link,
+            description=description
         )
-
-        if description:
-            msg += messages.TPL_FESTIVAL_DESCRIPTION.format(description=description)
-
-        if messages.HASHTAGS:
-            msg += '\n\n' + ' '.join(messages.HASHTAGS)
 
         return msg
 
