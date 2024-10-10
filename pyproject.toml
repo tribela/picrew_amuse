@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "picrew-bot"
+version = "0.1.0"
+description = ""
+authors = ["'Jeong Arm' <'kjwonmail@gmail.com'>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+mastodon-py = "^1.8.1"
+apscheduler = "^3.10.4"
+lxml = "^5.3.0"
+
+
+[tool.poetry.group.dev.dependencies]
+flake8 = "^7.1.1"
+flake8-import-order = "^0.18.2"
+flake8-builtins = "^2.5.0"
+mypy = "^1.11.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+disable_error_code = "import-untyped"
+check_untyped_defs = true
