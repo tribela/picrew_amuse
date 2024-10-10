@@ -5,7 +5,7 @@ import math
 import re
 import time
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 import mastodon
@@ -35,7 +35,7 @@ class FestivalState(enum.Enum):
 
 @dataclass
 class FestivalConfig:
-    request_status_id: int
+    request_noti_id: int
     picrew_link: str
     description: str | None
     prepare_end: datetime.datetime
@@ -44,7 +44,7 @@ class FestivalConfig:
     allow_multi: bool
 
     state: FestivalState = FestivalState.PREPARE
-    entries: set[str] = set()
+    entries: set[str] = field(default_factory=set)
     prepare_status_id: int | None = None
     question_status_id: int | None = None
     entries_status_id: int | None = None
@@ -70,36 +70,38 @@ class Bot:
         self.domain = self.mastodon.instance().uri
         self.logger.info(f'Bot initialized: {self.full_acct(self.me.acct)}')
 
-        self.last_status_id: int | None = None
+        self.last_noti_id: int | None = None
         self.current_festival: FestivalConfig | None = None
 
     def run(self):
         sched = BlockingScheduler()
         sched.add_job(self.do_job, 'interval', minutes=1)
+        self.do_job()
         sched.start()
 
     def do_job(self):
-        self.logger.debug('Checking notifications...')
-        notifications = self.mastodon.notifications(types=['mention'], since_id=self.last_status_id)
-        for noti in reversed(notifications):
-            self.process_mention(noti.status)
-
         now = datetime.datetime.now().astimezone()
 
-        if self.current_festival:
-            if now >= self.current_festival.prepare_end and self.current_festival.state == FestivalState.PREPARE:
+        if current_festival := self.current_festival:
+            if now >= current_festival.prepare_end and self.current_festival.state == FestivalState.PREPARE:
                 self.logger.info('Prepare end')
                 self.prepare_end()
-            if now >= self.current_festival.name_reveal_at \
-                    and self.current_festival.state == FestivalState.QUESTION_PUBLISHED:
+            if now >= current_festival.name_reveal_at \
+                    and current_festival.state == FestivalState.QUESTION_PUBLISHED:
                 self.logger.info('Name reveal')
                 self.reveal_entries()
-            if now >= self.current_festival.answer_reveal_at \
-                    and self.current_festival.state == FestivalState.NAME_REVEALED:
+            if now >= current_festival.answer_reveal_at \
+                    and current_festival.state == FestivalState.NAME_REVEALED:
                 self.logger.info('Answer reveal')
                 self.reveal_answer()
 
-    def process_mention(self, status):
+        self.logger.debug('Checking notifications...')
+        notifications = self.mastodon.notifications(types=['mention'], since_id=self.last_noti_id)
+        for noti in reversed(notifications):
+            self.process_mention(noti)
+
+    def process_mention(self, notification):
+        status = notification.status
         reply_visibility = status.visibility
         if reply_visibility == 'public':
             reply_visibility = 'unlisted'
@@ -107,7 +109,7 @@ class Bot:
         if self.search_picrew_link(status):
             self.logger.info(f'Picrew detected: {status.id}')
             if self.current_festival is None:
-                self.start_festival(status)
+                self.start_festival(notification)
             else:
                 self.logger.info('Existing festival is not ended yet')
                 # Mention that festival already running
@@ -124,10 +126,15 @@ class Bot:
                 # Mention that not in prepare state
                 msg = messages.NOT_IN_PREPARE
                 self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
+            else:
+                self.logger.info(f'Image detected: {status.id}')
+                # Ignore mentions whild preparing
+                return
 
-        self.last_status_id = status.id
+        self.last_noti_id = notification.id
 
-    def start_festival(self, status):
+    def start_festival(self, notification):
+        status = notification.status
         self.logger.info('Festival started')
         picrew_link = self.search_picrew_link(status)
         assert picrew_link is not None
@@ -146,6 +153,7 @@ class Bot:
 
         # Support festival description
         description = content
+        description = description.replace(picrew_link, '').replace(f'@{self.me.acct}', '')
         description = self.RE_PREPARE.sub('', description)
         description = self.RE_NAME_REVEAL.sub('', description)
         description = self.RE_ANSWER_REVEAL.sub('', description)
@@ -153,7 +161,7 @@ class Bot:
         description = description.strip()
 
         self.current_festival = FestivalConfig(
-            status.id,
+            notification.id,
             picrew_link,
             description or None,
             prepare_end,
@@ -177,7 +185,8 @@ class Bot:
         images: list[tuple[str, dict]] = []  # full_acct, media_attachment
 
         # Collect entries
-        mentions = self.mastodon.notifications(types=['mention'], since_id=self.current_festival.request_status_id)
+        self.logger.debug(f'Collecting entries from {self.current_festival.request_noti_id}')
+        mentions = self.mastodon.notifications(types=['mention'], since_id=self.current_festival.request_noti_id)
         for mention in reversed(mentions):
             status = mention.status
             for media in status.media_attachments:
@@ -194,7 +203,7 @@ class Bot:
             self.current_festival = None
             return
 
-        self.last_status_id = mentions[0].status.id
+        self.last_noti_id = mentions[0].id
 
         # Generate question/answer image
         drawer.generate_images(images)
@@ -235,6 +244,8 @@ class Bot:
             visibility='unlisted').id
         self.current_festival.entries_status_id = status_id
 
+        self.current_festival.state = FestivalState.NAME_REVEALED
+
     def reveal_answer(self):
         assert self.current_festival is not None
         assert self.current_festival.state == FestivalState.NAME_REVEALED
@@ -257,7 +268,7 @@ class Bot:
         assert self.current_festival is not None
 
         requester = self.full_acct(status.account.acct)
-        picrew_link = f'{self.current_festival.picrew_link:%H:%M}'
+        picrew_link = f'{self.current_festival.picrew_link}'
         prepare_end = f'{self.current_festival.prepare_end:%H:%M}'
         name_reveal_at = f'{self.current_festival.name_reveal_at:%H:%M}'
         answer_reveal_at = f'{self.current_festival.answer_reveal_at:%H:%M}'
@@ -309,12 +320,12 @@ class Bot:
             prepare_end = abstime + datetime.timedelta(minutes=PREPARE_MINUTES)
 
         if name_reveal := cls.RE_NAME_REVEAL.search(content):
-            name_reveal_at = cls.parse_time(abstime, name_reveal.group('time'), default_min=NAME_REVEAL_MINUTES)
+            name_reveal_at = cls.parse_time(prepare_end, name_reveal.group('time'), default_min=NAME_REVEAL_MINUTES)
         else:
             name_reveal_at = abstime + datetime.timedelta(minutes=NAME_REVEAL_MINUTES)
 
         if answer_reveal := cls.RE_ANSWER_REVEAL.search(content):
-            answer_reveal_at = cls.parse_time(abstime, answer_reveal.group('time'), default_min=ANSWER_REVEAL_MINUTES)
+            answer_reveal_at = cls.parse_time(name_reveal_at, answer_reveal.group('time'), default_min=ANSWER_REVEAL_MINUTES)
         else:
             answer_reveal_at = abstime + datetime.timedelta(minutes=ANSWER_REVEAL_MINUTES)
 
@@ -362,3 +373,27 @@ class Bot:
                 return new_time
 
         return abstime + datetime.timedelta(minutes=default_min)
+
+
+def main():
+    import os
+    import sys
+
+    loglevel = os.getenv('PICREW_LOGLEVEL', 'INFO')
+    logger = logging.getLogger(__package__)
+    logger.setLevel(loglevel)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s:%(levelname)s:%(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    ))
+    logger.addHandler(handler)
+
+    mastodon_instance = os.getenv('MASTODON_API_BASE_URL')
+    mastodon_access_token = os.getenv('MASTODON_ACCESS_TOKEN')
+    if not mastodon_instance or not mastodon_access_token:
+        logger.error('MASTODON_BASE_URL and MASTODON_ACCESS_TOKEN must be set')
+        sys.exit(1)
+
+    bot = Bot(mastodon_instance, mastodon_access_token)
+    bot.run()

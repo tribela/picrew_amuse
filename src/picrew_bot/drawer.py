@@ -42,7 +42,7 @@ def generate_images(attachments: list[tuple[str, dict]]):
         image = download_image(attachment)
         if not image:
             continue
-        image.thumbnail((CELL_SIZE, CELL_SIZE))
+        image = image.resize((CELL_SIZE, CELL_SIZE))
 
         question_canvas.paste(image, (x, y))
         answer_canvas.paste(image, (x, y))
