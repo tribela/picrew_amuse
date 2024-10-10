@@ -8,6 +8,7 @@ services:
     env_file:
       - .env
     environment:
-      - TZ=Asia/Seoul
+      TZ: Asia/Seoul
+      FONT_PATH: /usr/share/fonts/truetype/noto/NotoSansMono-Bold.ttf
     dns:
       - 1.1.1.1
