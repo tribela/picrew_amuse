@@ -1,7 +1,9 @@
 import datetime
 import enum
 import logging
+import math
 import re
+import time
 
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -10,6 +12,10 @@ import mastodon
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from lxml import html
+
+from . import common
+from . import drawer
+from . import messages
 
 PICREW_DOMAIN = 'picrew.me'
 MAX_ENTRY = 30
@@ -31,15 +37,15 @@ class FestivalState(enum.Enum):
 class FestivalConfig:
     request_status_id: int
     picrew_link: str
+    description: str | None
     prepare_end: datetime.datetime
     name_reveal_at: datetime.datetime
     answer_reveal_at: datetime.datetime
     allow_multi: bool
 
-    prepare_status_id: int
-
     state: FestivalState = FestivalState.PREPARE
-    entries: list[str] = []
+    entries: set[str] = set()
+    prepare_status_id: int | None = None
     question_status_id: int | None = None
     entries_status_id: int | None = None
 
@@ -61,7 +67,8 @@ class Bot:
             api_base_url=mastodon_instance
         )
         self.me = self.mastodon.me()
-        self.logger.info(f'Bot initialized: {self.me["acct"]} at {mastodon_instance}')
+        self.domain = self.mastodon.instance().uri
+        self.logger.info(f'Bot initialized: {self.full_acct(self.me.acct)}')
 
         self.last_status_id: int | None = None
         self.current_festival: FestivalConfig | None = None
@@ -93,20 +100,30 @@ class Bot:
                 self.reveal_answer()
 
     def process_mention(self, status):
+        reply_visibility = status.visibility
+        if reply_visibility == 'public':
+            reply_visibility = 'unlisted'
+
         if self.search_picrew_link(status):
             self.logger.info(f'Picrew detected: {status.id}')
             if self.current_festival is None:
                 self.start_festival(status)
             else:
                 self.logger.info('Existing festival is not ended yet')
-                # TODO: Mention that festival already running
+                # Mention that festival already running
+                msg = messages.ALREADY_RUNNING
+                self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
         elif status.media_attachments:
             if not self.current_festival:
                 self.logger.info(f'Image detected: {status.id}, But no festival is running')
-                # TODO: Mention that no festival is running
+                # Mention that no festival is running
+                msg = messages.NO_RUNNING
+                self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
             elif self.current_festival.state != FestivalState.PREPARE:
                 self.logger.info(f'Image detected: {status.id}, But not in prepare state')
-                # TODO: Mention that not in prepare state
+                # Mention that not in prepare state
+                msg = messages.NOT_IN_PREPARE
+                self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
 
         self.last_status_id = status.id
 
@@ -127,20 +144,29 @@ class Bot:
         self.logger.info(f'Name reveal at: {name_reveal_at}')
         self.logger.info(f'Answer reveal at: {answer_reveal_at}')
 
-        # TODO: Support festival description
-
-        # TODO: Post that festival started
-        prepare_status_id = None  # FIXME
+        # Support festival description
+        description = content
+        description = self.RE_PREPARE.sub('', description)
+        description = self.RE_NAME_REVEAL.sub('', description)
+        description = self.RE_ANSWER_REVEAL.sub('', description)
+        description = self.RE_ALLOW_MULTI.sub('', description)
+        description = description.strip()
 
         self.current_festival = FestivalConfig(
             status.id,
             picrew_link,
+            description or None,
             prepare_end,
             name_reveal_at,
             answer_reveal_at,
             allow_multi,
-            prepare_status_id
         )
+
+        # Post that festival started
+        msg = self.create_started_message(status)
+        # TODO: retry on failure
+        prepare_status_id = self.mastodon.status_post(msg, visibility='public').id
+        self.current_festival.prepare_status_id = prepare_status_id
 
     def prepare_end(self):
         assert self.current_festival is not None
@@ -148,50 +174,131 @@ class Bot:
 
         self.logger.info('Prepare end')
 
-        # TODO: Collect entries
-        mentions = self.mastodon.notifications(types=['mention'], since_id=self.current_festival.request_status_id)
-        self.current_festival.entries = []
+        images: list[tuple[str, dict]] = []  # full_acct, media_attachment
 
-        self.last_status_id = "" # FIXME
+        # Collect entries
+        mentions = self.mastodon.notifications(types=['mention'], since_id=self.current_festival.request_status_id)
+        for mention in reversed(mentions):
+            status = mention.status
+            for media in status.media_attachments:
+                images.append((self.full_acct(status.account.acct), media))
+            self.current_festival.entries.add(self.full_acct(status.account.acct))
+            if len(images) >= MAX_ENTRY:
+                images = images[:MAX_ENTRY]
+                break
 
         if not self.current_festival.entries:
             # End festival
-            # TODO: Post that festival is canceled due to no entries
-            pass
+            msg = messages.FESTIVAL_CANCELLED
+            self.mastodon.status_post(msg, in_reply_to_id=self.current_festival.prepare_status_id, visibility='public')
+            self.current_festival = None
+            return
 
-        # TODO: Collect images and generate question/answer image
+        self.last_status_id = mentions[0].status.id
 
-        # TODO: Forge status with question image
+        # Generate question/answer image
+        drawer.generate_images(images)
 
-        if self.current_festival.prepare_end == self.current_festival.name_reveal_at:
-            # TODO: Append entries to the status
-            # TODO: Post status
-            status_id = None  # FIXME
-            self.current_festival.question_status_id = status_id
-            self.current_festival.entries_status_id = status_id
+        # Forge status with question image
+        media = self.upload_media(common.QUESTION_IMAGE_PATH)
+        msg = messages.QUESTION
+
+        also_reveal_entries = self.current_festival.name_reveal_at == self.current_festival.prepare_end
+
+        if also_reveal_entries:
+            # Append entries to the status
+            msg += '\n' + messages.entries(list(self.current_festival.entries))
+
+        msg += '\n\n' + ' '.join(messages.HASHTAGS)
+
+        status_id = self.mastodon.status_post(
+            msg,
+            in_reply_to_id=self.current_festival.prepare_status_id,
+            media_ids=[media.id],
+            visibility='public').id
+        self.current_festival.question_status_id = status_id
+
+        self.current_festival.state = FestivalState.QUESTION_PUBLISHED
+
+        if also_reveal_entries:
             self.current_festival.state = FestivalState.NAME_REVEALED
-        else:
-            # TODO: Post status
-            status_id = None  # FIXME
-            self.current_festival.question_status_id = status_id
-            self.current_festival.state = FestivalState.QUESTION_PUBLISHED
+            self.current_festival.entries_status_id = status_id
 
     def reveal_entries(self):
         assert self.current_festival is not None
         assert self.current_festival.state == FestivalState.QUESTION_PUBLISHED
 
-        # TODO: Post status
-        status_id = None  # FIXME
+        msg = messages.entries(list(self.current_festival.entries))
+        status_id = self.mastodon.status_post(
+            msg,
+            in_reply_to_id=self.current_festival.question_status_id,
+            visibility='unlisted').id
         self.current_festival.entries_status_id = status_id
 
     def reveal_answer(self):
         assert self.current_festival is not None
         assert self.current_festival.state == FestivalState.NAME_REVEALED
 
-        # TODO: Post status with answer image
+        # Post status with answer image
+        media = self.upload_media(common.ANSWER_IMAGE_PATH)
+        msg = messages.ANSWER
+        msg += '\n\n' + ' '.join(messages.HASHTAGS)
+
+        self.mastodon.status_post(
+            msg,
+            in_reply_to_id=self.current_festival.entries_status_id,
+            media_ids=[media.id],
+            visibility='public')
 
         # End festival
         self.current_festival = None
+
+    def create_started_message(self, status) -> str:
+        assert self.current_festival is not None
+
+        requester = self.full_acct(status.account.acct)
+        picrew_link = f'{self.current_festival.picrew_link:%H:%M}'
+        prepare_end = f'{self.current_festival.prepare_end:%H:%M}'
+        name_reveal_at = f'{self.current_festival.name_reveal_at:%H:%M}'
+        answer_reveal_at = f'{self.current_festival.answer_reveal_at:%H:%M}'
+        description = self.current_festival.description
+
+        if name_reveal_at == prepare_end:
+            name_reveal_at = messages.NAME_REVEALED_AT_SAME_TIME
+
+        msg = messages.TPL_FESTIVAL_STARTED.format(
+            requester=requester,
+            prepare_end=prepare_end,
+            name_reveal_at=name_reveal_at,
+            answer_reveal_at=answer_reveal_at,
+            picrew_link=picrew_link
+        )
+
+        if description:
+            msg += messages.TPL_FESTIVAL_DESCRIPTION.format(description=description)
+
+        if messages.HASHTAGS:
+            msg += '\n\n' + ' '.join(messages.HASHTAGS)
+
+        return msg
+
+    def upload_media(self, path: str):
+        media = self.mastodon.media_post(path)
+        try_count = 0
+        while 'url' not in media or media.url is None:
+            try_count += 1
+            sleep_duration = math.log2(1 + try_count)
+            time.sleep(sleep_duration)
+            try:
+                media = self.mastodon.media(media)
+            except Exception:
+                raise
+        return media
+
+    def full_acct(self, acct: str) -> str:
+        if '@' in acct:
+            return acct
+        return f'{acct}@{self.domain}'
 
     @classmethod
     def parse_festival_schedule(cls, content, abstime) \
