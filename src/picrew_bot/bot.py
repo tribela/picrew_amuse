@@ -18,6 +18,7 @@ from . import drawer
 from . import messages
 
 PICREW_DOMAIN = 'picrew.me'
+MIN_ENTRY = 2
 MAX_ENTRY = 30
 
 # Default configs
@@ -196,7 +197,7 @@ class Bot:
                 images = images[:MAX_ENTRY]
                 break
 
-        if not self.current_festival.entries:
+        if len(self.current_festival.entries) < MIN_ENTRY:
             # End festival
             msg = messages.FESTIVAL_CANCELLED
             self.mastodon.status_post(msg, in_reply_to_id=self.current_festival.prepare_status_id, visibility='public')
