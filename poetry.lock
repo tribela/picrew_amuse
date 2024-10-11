@@ -472,15 +472,13 @@ htmlsoup = ["BeautifulSoup4"]
 source = ["Cython (>=3.0.11)"]
 
 [[package]]
-name = "mastodon-py"
+name = "Mastodon.py"
 version = "1.8.1"
 description = "Python wrapper for the Mastodon API"
 optional = false
 python-versions = "*"
-files = [
-    {file = "Mastodon.py-1.8.1-py2.py3-none-any.whl", hash = "sha256:22bc7e060518ef2eaa69d911cde6e4baf56bed5ea0dd407392c49051a7ac526a"},
-    {file = "Mastodon.py-1.8.1.tar.gz", hash = "sha256:4a64cb94abadd6add73e4b8eafdb5c466048fa5f638284fd2189034104d4687e"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 blurhash = ">=1.1.4"
@@ -489,12 +487,19 @@ python-dateutil = "*"
 python-magic = {version = "*", markers = "platform_system != \"Windows\""}
 python-magic-bin = {version = "*", markers = "platform_system == \"Windows\""}
 requests = ">=2.4.2"
-six = "*"
 
 [package.extras]
 blurhash = ["blurhash (>=1.1.4)"]
-test = ["blurhash (>=1.1.4)", "cryptography (>=1.6.0)", "http-ece (>=1.0.5)", "pytest", "pytest-cov", "pytest-mock", "pytest-runner", "pytest-vcr", "pytz", "requests-mock", "vcrpy"]
+docs = ["sphinx-rtd-theme"]
+test = ["pytest", "pytest-cov", "pytest-mock", "pytest-retry", "pytest-runner", "pytest-vcr", "pytz", "requests-mock", "vcrpy"]
+test-old = ["pytest", "pytest-cov", "pytest-mock", "pytest-runner", "pytest-vcr", "pytz", "requests-mock", "vcrpy"]
 webpush = ["cryptography (>=1.6.0)", "http-ece (>=1.0.5)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/halcy/Mastodon.py"
+reference = "HEAD"
+resolved_reference = "47aa316c36307ec891e41d34c1d4db91cca7b433"
 
 [[package]]
 name = "mccabe"
@@ -853,4 +858,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "cb1bd703a63b494ccb1a0d7f11b6c36b5ea4c4f1fdae97865fd3d010c59aa224"
+content-hash = "1e580f082737e2473c73ddd2fb063d51592694930deeefe257afaa113f77be84"

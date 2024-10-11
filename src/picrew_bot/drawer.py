@@ -4,6 +4,7 @@ import os
 
 import httpx
 
+from mastodon.Mastodon import MediaAttachment
 from PIL import Image, ImageDraw, ImageFont
 
 from . import common
@@ -18,7 +19,7 @@ FONT_COLOR = 'black'
 FONT_GAP = 5
 
 
-def generate_images(attachments: list[tuple[str, dict]]):
+def generate_images(attachments: list[tuple[str, MediaAttachment]]):
     count = len(attachments)
     rows = math.ceil(count ** 0.5)
     cols = math.ceil(count / rows)
@@ -70,7 +71,7 @@ def generate_images(attachments: list[tuple[str, dict]]):
         answer_canvas.save(common.ANSWER_IMAGE_PATH)
 
 
-def download_image(attachment) -> Image.Image | None:
+def download_image(attachment: MediaAttachment) -> Image.Image | None:
     for url in [attachment.remote_url, attachment.url, attachment.preview_url]:
         if not url:
             continue

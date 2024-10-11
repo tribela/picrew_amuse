@@ -13,6 +13,7 @@ import mastodon
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from lxml import html
+from mastodon.Mastodon import IdType, MediaAttachment, Notification, Status
 
 from . import common
 from . import drawer
@@ -37,7 +38,7 @@ class FestivalState(enum.Enum):
 
 @dataclass
 class FestivalConfig:
-    request_noti_id: int
+    request_noti_id: IdType
     picrew_link: str
     description: str | None
     prepare_end: datetime.datetime
@@ -47,9 +48,9 @@ class FestivalConfig:
 
     state: FestivalState = FestivalState.PREPARE
     entries: set[str] = field(default_factory=set)
-    prepare_status_id: int | None = None
-    question_status_id: int | None = None
-    entries_status_id: int | None = None
+    prepare_status_id: IdType | None = None
+    question_status_id: IdType | None = None
+    entries_status_id: IdType | None = None
 
 
 class Bot:
@@ -72,7 +73,7 @@ class Bot:
         self.domain = self.mastodon.instance().uri
         self.logger.info(f'Bot initialized: {self.full_acct(self.me.acct)}')
 
-        self.last_noti_id: int | None = None
+        self.last_noti_id: IdType | None = None
         self.current_festival: FestivalConfig | None = None
 
         self.load()
@@ -106,8 +107,8 @@ class Bot:
 
         self.save()
 
-    def process_mention(self, notification):
-        status = notification.status
+    def process_mention(self, notification: Notification):
+        status: Status = notification.status
         reply_visibility = status.visibility
         if reply_visibility == 'public':
             reply_visibility = 'unlisted'
@@ -139,7 +140,7 @@ class Bot:
 
         self.last_noti_id = notification.id
 
-    def start_festival(self, notification):
+    def start_festival(self, notification: Notification):
         status = notification.status
         self.logger.info('Festival started')
         picrew_link = self.search_picrew_link(status)
@@ -186,9 +187,7 @@ class Bot:
         assert self.current_festival is not None
         assert self.current_festival.state == FestivalState.PREPARE
 
-        self.logger.info('Prepare end')
-
-        images: list[tuple[str, dict]] = []  # full_acct, media_attachment
+        images: list[tuple[str, MediaAttachment]] = []  # full_acct, media_attachment
 
         # Collect entries
         self.logger.debug(f'Collecting entries from {self.current_festival.request_noti_id}')
