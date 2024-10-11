@@ -114,7 +114,7 @@ class Bot:
             reply_visibility = 'unlisted'
 
         if self.search_picrew_link(status):
-            self.logger.info(f'Picrew detected: {status.id}')
+            self.logger.info(f'Picrew detected: {status.url}')
             if self.current_festival is None:
                 self.start_festival(notification)
             else:
@@ -124,19 +124,17 @@ class Bot:
                 self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
         elif status.media_attachments:
             if not self.current_festival:
-                self.logger.info(f'Image detected: {status.id}, But no festival is running')
+                self.logger.info(f'Image detected: {status.url}, But no festival is running')
                 # Mention that no festival is running
                 msg = f'@{status.account.acct} {messages.NO_RUNNING}'
                 self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
             elif self.current_festival.state != FestivalState.PREPARE:
-                self.logger.info(f'Image detected: {status.id}, But not in prepare state')
+                self.logger.info(f'Image detected: {status.url}, But not in prepare state')
                 # Mention that not in prepare state
                 msg = f'@{status.account.acct} {messages.NOT_IN_PREPARE}'
                 self.mastodon.status_post(msg, in_reply_to_id=status.id, visibility=reply_visibility)
             else:
-                self.logger.info(f'Image detected: {status.id}')
-                # Ignore mentions whild preparing
-                return
+                self.logger.info(f'Image detected: {status.url}')
 
         self.last_noti_id = notification.id
 
