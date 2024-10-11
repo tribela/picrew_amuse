@@ -147,9 +147,10 @@ class Bot:
         content = self.plain_text(status)
         abstime = status.created_at.astimezone()
         prepare_end, name_reveal_at, answer_reveal_at = self.parse_festival_schedule(content, abstime)
-        # TODO: Check min time between each event
+        # FIXME: Check min time intervals for each event
 
-        allow_multi = bool(self.RE_ALLOW_MULTI.search(content))
+        # allow_multi = bool(self.RE_ALLOW_MULTI.search(content))
+        allow_multi = True  # FIXME: Not supported yet
 
         self.logger.info(f'Picrew link: {picrew_link}')
         self.logger.info(f'Prepare end: {prepare_end}')
@@ -188,11 +189,22 @@ class Bot:
         images: list[tuple[str, MediaAttachment]] = []  # full_acct, media_attachment
 
         # Collect entries
-        self.logger.debug(f'Collecting entries from {self.current_festival.request_noti_id}')
-        mentions = self.mastodon.notifications(types=['mention'], since_id=self.current_festival.request_noti_id)
-        for mention in reversed(mentions):
-            status = mention.status
-            for media in status.media_attachments:
+        # : Beside of notifications, Check start_message's replies
+        self.logger.debug(f'Collecting entries for {self.current_festival.prepare_status_id}')
+        assert self.current_festival.prepare_status_id is not None
+        mentions = self.mastodon.status_context(self.current_festival.prepare_status_id).descendants
+
+        for status in mentions:
+            acct = self.full_acct(status.account.acct)
+            if not self.current_festival.allow_multi and acct in self.current_festival.entries:
+                # FIXME: Use last image
+                continue
+
+            attachments = status.media_attachments
+            if not self.current_festival.allow_multi:
+                attachments = attachments[:1]
+
+            for media in attachments:
                 images.append((self.full_acct(status.account.acct), media))
             self.current_festival.entries.add(self.full_acct(status.account.acct))
             if len(images) >= MAX_ENTRY:
