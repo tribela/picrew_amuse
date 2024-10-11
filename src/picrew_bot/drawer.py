@@ -1,6 +1,7 @@
 import io
 import math
 import os
+import random
 
 import httpx
 
@@ -23,6 +24,8 @@ def generate_images(attachments: list[tuple[str, MediaAttachment]]):
     count = len(attachments)
     rows = math.ceil(count ** 0.5)
     cols = math.ceil(count / rows)
+
+    random.shuffle(attachments)
 
     canvas_width = cols * (CELL_SIZE + CELL_GAP) - CELL_GAP
     canvas_height = rows * (CELL_SIZE + CELL_GAP) - CELL_GAP
