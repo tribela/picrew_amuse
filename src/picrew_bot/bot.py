@@ -70,7 +70,7 @@ class Bot:
             api_base_url=mastodon_instance
         )
         self.me = self.mastodon.me()
-        self.domain = self.mastodon.instance().uri
+        self.domain = self.mastodon.instance().domain
         self.logger.info(f'Bot initialized: {self.full_acct(self.me.acct)}')
 
         self.last_noti_id: IdType | None = None
