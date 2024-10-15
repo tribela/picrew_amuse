@@ -376,13 +376,13 @@ class Bot:
         if name_reveal := cls.RE_NAME_REVEAL.search(content):
             name_reveal_at = cls.parse_time(prepare_end, name_reveal.group('time'), default_min=NAME_REVEAL_MINUTES)
         else:
-            name_reveal_at = abstime + datetime.timedelta(minutes=NAME_REVEAL_MINUTES)
+            name_reveal_at = prepare_end + datetime.timedelta(minutes=NAME_REVEAL_MINUTES)
 
         if answer_reveal := cls.RE_ANSWER_REVEAL.search(content):
             answer_reveal_at = cls.parse_time(
                 name_reveal_at, answer_reveal.group('time'), default_min=ANSWER_REVEAL_MINUTES)
         else:
-            answer_reveal_at = abstime + datetime.timedelta(minutes=ANSWER_REVEAL_MINUTES)
+            answer_reveal_at = name_reveal_at + datetime.timedelta(minutes=ANSWER_REVEAL_MINUTES)
 
         return prepare_end, name_reveal_at, answer_reveal_at
 
