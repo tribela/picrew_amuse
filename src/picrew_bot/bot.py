@@ -73,7 +73,7 @@ class Bot:
         self.domain = self.mastodon.instance().domain
         self.logger.info(f'Bot initialized: {self.full_acct(self.me.acct)}')
 
-        self.last_noti_id: IdType | None = None
+        self.last_mention_id: IdType | None = None
         self.current_festival: FestivalConfig | None = None
 
         self.load()
@@ -101,8 +101,10 @@ class Bot:
                 self.reveal_answer()
 
         self.logger.debug('Checking notifications...')
-        notifications = self.mastodon.notifications(types=['mention'], since_id=self.last_noti_id)
+        notifications = self.mastodon.notifications(types=['mention'])
         for noti in reversed(notifications):
+            if self.last_mention_id and noti.status.id <= self.last_mention_id:
+                continue
             self.process_mention(noti)
 
         self.save()
@@ -136,7 +138,7 @@ class Bot:
             else:
                 self.logger.info(f'Image detected: {status.url}')
 
-        self.last_noti_id = notification.id
+        self.last_mention_id = status.id
 
     def start_festival(self, notification: Notification):
         status = notification.status
@@ -218,7 +220,7 @@ class Bot:
             self.current_festival = None
             return
 
-        self.last_noti_id = mentions[0].id
+        self.last_mention_id = mentions[-1].id
 
         # Generate question/answer image
         drawer.generate_images(images)
@@ -316,7 +318,7 @@ class Bot:
 
     def save(self):
         states = {
-            'last_noti_id': self.last_noti_id,
+            'last_noti_id': self.last_mention_id,
             'current_festival': {
                 'request_noti_id': self.current_festival.request_noti_id,
                 'picrew_link': self.current_festival.picrew_link,
@@ -343,7 +345,7 @@ class Bot:
             with open(common.STATE_PATH, 'r') as f:
                 states = json.load(f)
                 self.logger.debug(f'Loaded states: {states}')
-                self.last_noti_id = states['last_noti_id']
+                self.last_mention_id = states['last_noti_id']
                 if current_festival := states['current_festival']:
                     self.current_festival = FestivalConfig(
                         current_festival['request_noti_id'],
@@ -360,7 +362,7 @@ class Bot:
                         current_festival['entries_status_id'],
                     )
 
-            self.logger.info(f'States loaded: {self.last_noti_id} {self.current_festival}')
+            self.logger.info(f'States loaded: {self.last_mention_id} {self.current_festival}')
 
         except (FileNotFoundError, json.JSONDecodeError):
             pass
