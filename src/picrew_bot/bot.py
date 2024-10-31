@@ -19,7 +19,10 @@ from . import common
 from . import drawer
 from . import messages
 
-PICREW_DOMAIN = 'picrew.me'
+ALLOWED_DOMAINS = [
+    'picrew.me',
+    'www.neka.cc',
+]
 MIN_ENTRY = 2
 MAX_ENTRY = 30
 
@@ -393,7 +396,7 @@ class Bot:
         html_doc = html.fromstring(status.content)
         for link in html_doc.xpath('//a'):
             href = link.attrib['href']
-            if urlparse(href).netloc == PICREW_DOMAIN:
+            if urlparse(href).netloc in ALLOWED_DOMAINS:
                 return href
 
         return None
