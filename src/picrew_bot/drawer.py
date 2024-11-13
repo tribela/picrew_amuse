@@ -22,8 +22,8 @@ FONT_GAP = 5
 
 def generate_images(attachments: list[tuple[str, MediaAttachment]]):
     count = len(attachments)
-    rows = math.ceil(count ** 0.5)
-    cols = math.ceil(count / rows)
+    cols = math.ceil(count ** 0.5)
+    rows = math.ceil(count / cols)
 
     random.shuffle(attachments)
 
