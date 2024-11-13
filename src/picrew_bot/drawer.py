@@ -12,7 +12,7 @@ from . import common
 
 CELL_SIZE = 600
 CELL_GAP = 10
-NAME_POSITION = (0.5, 0.7)
+NAME_POSITION = (0.5, 0.8)
 FONT_PATH = os.getenv('FONT_PATH', common.DEFAULT_FONT_PATH)
 FONT_SIZE = CELL_SIZE // 20
 FONT_BACKGROUND = 'white'
