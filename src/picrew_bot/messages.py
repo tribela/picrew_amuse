@@ -6,6 +6,7 @@ NO_RUNNING = "진행중인 픽락관이 없습니다"
 NOT_IN_PREPARE = "참가신청이 마감되었습니다"
 
 FESTIVAL_CANCELLED = "참가자가 부족하여 픽락관이 취소되었습니다"
+FESTIVAL_FAILED = '픽락관 생성에 실패했습니다'
 
 NAME_REVEALED_AT_SAME_TIME = "문제 공개와 동시에"
 

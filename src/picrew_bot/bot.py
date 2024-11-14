@@ -171,6 +171,7 @@ class Bot:
         description = self.RE_ALLOW_MULTI.sub('', description)
         description = description.strip()
 
+        # TODO: Delete if failed to post
         self.current_festival = FestivalConfig(
             notification.id,
             picrew_link,
@@ -183,8 +184,24 @@ class Bot:
 
         # Post that festival started
         msg = self.create_started_message(status)
-        # TODO: retry on failure
-        prepare_status_id = self.mastodon.status_post(msg, visibility='public').id
+        try:
+            prepare_status_id = self.mastodon.status_post(msg, visibility='public').id
+        except mastodon.MastodonError:
+            # Retry without description
+            msg = self.create_started_message(status, desc_as_link=True)
+            try:
+                prepare_status_id = self.mastodon.status_post(msg, visibility='public').id
+            except:
+                raise Exception('Failed to post')
+        except Exception as e:
+            self.current_festival = None
+            reply_visibility = status.visibility
+            if reply_visibility == 'public':
+                reply_visibility = 'unlisted'
+            self.logger.error(f'Failed to post started message: {e}')
+            self.mastodon.status_post(messages.FESTIVAL_FAILED, in_reply_to_id=status.id, visibility=reply_visibility)
+            return
+
         self.current_festival.prepare_status_id = prepare_status_id
 
     def prepare_end(self):
@@ -277,7 +294,7 @@ class Bot:
         # End festival
         self.current_festival = None
 
-    def create_started_message(self, status) -> str:
+    def create_started_message(self, status, desc_as_link: bool = False) -> str:
         assert self.current_festival is not None
 
         requester = self.full_acct(status.account.acct)
@@ -285,7 +302,7 @@ class Bot:
         prepare_end = f'{self.current_festival.prepare_end:%H:%M}'
         name_reveal_at = f'{self.current_festival.name_reveal_at:%H:%M}'
         answer_reveal_at = f'{self.current_festival.answer_reveal_at:%H:%M}'
-        description = self.current_festival.description
+        description = self.current_festival.description if not desc_as_link else status.url
 
         if name_reveal_at == prepare_end:
             name_reveal_at = messages.NAME_REVEALED_AT_SAME_TIME
