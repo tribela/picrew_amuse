@@ -70,8 +70,8 @@ def generate_images(attachments: list[tuple[str, MediaAttachment]]):
 
         draw.text(**opts, fill=FONT_COLOR)  # type: ignore
 
-        question_canvas.save(common.QUESTION_IMAGE_PATH)
-        answer_canvas.save(common.ANSWER_IMAGE_PATH)
+    question_canvas.save(common.QUESTION_IMAGE_PATH)
+    answer_canvas.save(common.ANSWER_IMAGE_PATH)
 
 
 def download_image(attachment: MediaAttachment) -> Image.Image | None:
