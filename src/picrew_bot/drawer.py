@@ -11,10 +11,11 @@ from PIL import Image, ImageDraw, ImageFont
 from . import common
 
 CELL_SIZE = 600
-CELL_GAP = 10
+CELL_GAP = 30
 NAME_POSITION = (0.5, 0.8)
 FONT_PATH = os.getenv('FONT_PATH', common.DEFAULT_FONT_PATH)
-FONT_SIZE = CELL_SIZE // 20
+ANSWER_FONT_SIZE = CELL_SIZE // 20
+NUMBER_FONT_SIZE = CELL_GAP
 FONT_BACKGROUND = 'white'
 FONT_COLOR = 'black'
 FONT_GAP = 5
@@ -27,21 +28,24 @@ def generate_images(attachments: list[tuple[str, MediaAttachment]]):
 
     random.shuffle(attachments)
 
-    canvas_width = cols * (CELL_SIZE + CELL_GAP) - CELL_GAP
-    canvas_height = rows * (CELL_SIZE + CELL_GAP) - CELL_GAP
+    canvas_width = cols * (CELL_SIZE + CELL_GAP) + CELL_GAP
+    canvas_height = rows * (CELL_SIZE + CELL_GAP) + CELL_GAP
 
     question_canvas = Image.new('RGB', (canvas_width, canvas_height), 'white')
     answer_canvas = question_canvas.copy()
 
-    draw = ImageDraw.Draw(answer_canvas)
-    font = ImageFont.truetype(FONT_PATH, FONT_SIZE)
+    question_draw = ImageDraw.Draw(question_canvas)
+    answer_draw = ImageDraw.Draw(answer_canvas)
+    answer_font = ImageFont.truetype(FONT_PATH, ANSWER_FONT_SIZE)
+    number_font = ImageFont.truetype(FONT_PATH, NUMBER_FONT_SIZE)
 
     for i, (acct, attachment) in enumerate(attachments):
         row = i // cols
         col = i % cols
+        number_caption = f'{i + 1:d}'
 
-        x = col * (CELL_SIZE + CELL_GAP)
-        y = row * (CELL_SIZE + CELL_GAP)
+        x = col * (CELL_SIZE + CELL_GAP) + CELL_GAP
+        y = row * (CELL_SIZE + CELL_GAP) + CELL_GAP
 
         image = download_image(attachment)
         if not image:
@@ -51,24 +55,35 @@ def generate_images(attachments: list[tuple[str, MediaAttachment]]):
         question_canvas.paste(image, (x, y))
         answer_canvas.paste(image, (x, y))
 
-        opts = {
-            'xy': (x + CELL_SIZE * NAME_POSITION[0], y + CELL_SIZE * NAME_POSITION[1]),
-            'text': acct,
-            'font': font,
+        number_text_opts = {
+            'xy': (x + CELL_SIZE / 2, y - CELL_GAP / 2),
+            'text': number_caption,
+            'font': number_font,
             'anchor': 'mm',
         }
 
-        text_size = draw.textbbox(**opts)
-        text_size = (
+        question_draw.text(**number_text_opts, fill=FONT_COLOR)  # type: ignore
+        answer_draw.text(**number_text_opts, fill=FONT_COLOR)  # type: ignore
+
+        answer_text_opts = {
+            'xy': (x + CELL_SIZE * NAME_POSITION[0], y + CELL_SIZE * NAME_POSITION[1]),
+            'text': acct,
+            'font': answer_font,
+            'anchor': 'mm',
+        }
+
+        text_size = answer_draw.textbbox(**answer_text_opts)
+        box_size = (
             text_size[0] - FONT_GAP,
             text_size[1] - FONT_GAP,
             text_size[2] + FONT_GAP,
             text_size[3] + FONT_GAP,
         )
 
-        draw.rectangle(text_size, fill=FONT_BACKGROUND, outline=FONT_COLOR, width=2)
+        answer_draw.rectangle(box_size, fill=FONT_BACKGROUND,
+                              outline=FONT_COLOR, width=2)
 
-        draw.text(**opts, fill=FONT_COLOR)  # type: ignore
+        answer_draw.text(**answer_text_opts, fill=FONT_COLOR)  # type: ignore
 
     question_canvas.save(common.QUESTION_IMAGE_PATH)
     answer_canvas.save(common.ANSWER_IMAGE_PATH)
