@@ -61,6 +61,7 @@ class Bot:
     RE_NAME_REVEAL = re.compile(r'^참가자 공개: (?P<time>.+)$', re.M)
     RE_ANSWER_REVEAL = re.compile(r'^정답 공개: (?P<time>.+)$', re.M)
     RE_ALLOW_MULTI = re.compile(r'^다중참가$', re.M)
+    RE_URL = re.compile(r'(?:URL|주소): (.+)$', re.M)
 
     RE_TIME = re.compile(r'^(?:(?P<minutes>\d{1,2})분|(?P<abshour>\d{2}):(?P<absminute>\d{2}))$')
     RE_IMMEDIATE = re.compile(r'^(?:즉시|바로)$')
@@ -174,6 +175,7 @@ class Bot:
         description = self.RE_NAME_REVEAL.sub('', description)
         description = self.RE_ANSWER_REVEAL.sub('', description)
         description = self.RE_ALLOW_MULTI.sub('', description)
+        description = self.RE_URL.sub('', description)
         description = description.strip()
 
         # TODO: Delete if failed to post
@@ -413,9 +415,13 @@ class Bot:
 
         return prepare_end, name_reveal_at, answer_reveal_at
 
-    @staticmethod
-    def search_picrew_link(status) -> str | None:
+    @classmethod
+    def search_picrew_link(cls, status) -> str | None:
         html_doc = html.fromstring(status.content)
+        text = cls.plain_text(status)
+        if matched := cls.RE_URL.search(text):
+            return matched.group(1)
+
         for link in html_doc.xpath('//a'):
             href = link.attrib['href']
             if urlparse(href).netloc in ALLOWED_DOMAINS:
