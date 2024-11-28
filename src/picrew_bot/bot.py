@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 
 import mastodon
 
-from apscheduler.schedulers.blocking import BlockingScheduler
 from lxml import html
 from mastodon.Mastodon import IdType, MediaAttachment, Notification, Status
 
@@ -82,10 +81,16 @@ class Bot:
         self.load()
 
     def run(self):
-        sched = BlockingScheduler()
-        sched.add_job(self.do_job, 'interval', minutes=1)
-        self.do_job()
-        sched.start()
+        while True:
+            try:
+                self.do_job()
+            except KeyboardInterrupt:
+                self.logger.info('Interrupted by user')
+                break
+            except Exception as e:
+                self.logger.exception(e)
+
+            time.sleep(60)
 
     def do_job(self):
         now = datetime.datetime.now().astimezone()

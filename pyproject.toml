@@ -11,7 +11,6 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.11"
 mastodon-py = {git = "https://github.com/halcy/Mastodon.py"}
-apscheduler = "^3.10.4"
 lxml = "^5.3.0"
 pillow = "^10.4.0"
 httpx = "^0.27.2"
