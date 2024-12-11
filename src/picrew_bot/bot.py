@@ -90,6 +90,7 @@ class Bot:
                 break
             except Exception as e:
                 self.logger.exception(e)
+                self.logger.error('Error occurred. But continue to run')
 
             time.sleep(60)
 
