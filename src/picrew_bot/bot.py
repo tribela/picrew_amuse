@@ -12,7 +12,8 @@ from urllib.parse import urlparse
 import mastodon
 
 from lxml import html
-from mastodon.Mastodon import IdType, MediaAttachment, Notification, Status
+from mastodon.types_base import IdType
+from mastodon.return_types import MediaAttachment, Notification, Status
 
 from . import common
 from . import drawer

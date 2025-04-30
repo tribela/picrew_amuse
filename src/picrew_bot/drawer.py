@@ -5,7 +5,7 @@ import random
 
 import httpx
 
-from mastodon.Mastodon import MediaAttachment
+from mastodon.return_types import MediaAttachment
 from PIL import Image, ImageDraw, ImageFont
 
 from . import common
