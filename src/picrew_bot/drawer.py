@@ -31,7 +31,7 @@ def generate_images(attachments: list[tuple[str, MediaAttachment]]):
     canvas_width = cols * (CELL_SIZE + CELL_GAP) + CELL_GAP
     canvas_height = rows * (CELL_SIZE + CELL_GAP) + CELL_GAP
 
-    question_canvas = Image.new('RGB', (canvas_width, canvas_height), 'white')
+    question_canvas = Image.new('RGBA', (canvas_width, canvas_height), 'white')
     answer_canvas = question_canvas.copy()
 
     question_draw = ImageDraw.Draw(question_canvas)
@@ -85,6 +85,8 @@ def generate_images(attachments: list[tuple[str, MediaAttachment]]):
 
         answer_draw.text(**answer_text_opts, fill=FONT_COLOR)  # type: ignore
 
+    question_canvas = question_canvas.convert('RGB')
+    answer_canvas = answer_canvas.convert('RGB')
     question_canvas.save(common.QUESTION_IMAGE_PATH)
     answer_canvas.save(common.ANSWER_IMAGE_PATH)
 
