@@ -9,6 +9,7 @@ import time
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
+import humanize
 import mastodon
 
 from lxml import html
@@ -19,12 +20,16 @@ from . import common
 from . import drawer
 from . import messages
 
+humanize.i18n.activate('ko_KR')
+
 ALLOWED_DOMAINS = [
     'picrew.me',
     'www.neka.cc',
 ]
 MIN_ENTRY = 2
 MAX_ENTRY = 30
+
+MAX_DURATION = datetime.timedelta(days=1)
 
 # Default configs
 PREPARE_MINUTES = 30
@@ -160,7 +165,18 @@ class Bot:
         content = self.plain_text(status)
         abstime = status.created_at.astimezone()
         prepare_end, name_reveal_at, answer_reveal_at = self.parse_festival_schedule(content, abstime)
-        # FIXME: Check min time intervals for each event
+
+        # Check if the festival is too long
+        if answer_reveal_at - abstime > MAX_DURATION:
+            self.logger.warning('Festival is too long, cancelling')
+            reply_visibility = status.visibility
+            if reply_visibility == 'public':
+                reply_visibility = 'unlisted'
+            self.mastodon.status_post(
+                messages.FESTIVAL_TOO_LONG.format(duration=humanize.delta(MAX_DURATION)),
+                in_reply_to_id=status.id,
+                visibility=reply_visibility)
+            return
 
         # allow_multi = bool(self.RE_ALLOW_MULTI.search(content))
         allow_multi = True  # FIXME: Not supported yet
