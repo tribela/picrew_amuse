@@ -64,7 +64,7 @@ class Bot:
     RE_ALLOW_MULTI = re.compile(r'^다중참가$', re.M)
     RE_URL = re.compile(r'(?:URL|주소): (.+)$', re.M)
 
-    RE_TIME = re.compile(r'^(?:(?P<minutes>\d{1,2})분|(?P<abshour>\d{2}):(?P<absminute>\d{2}))$')
+    RE_TIME = re.compile(r'^(?:(?P<hours>\d{1,2})시간|(?P<minutes>\d{1,3})분|(?P<abshour>\d{2}):(?P<absminute>\d{2}))$')
     RE_IMMEDIATE = re.compile(r'^(?:즉시|바로)$')
 
     def __init__(self, mastodon_instance, mastodon_access_token):
@@ -453,7 +453,9 @@ class Bot:
         if match := cls.RE_IMMEDIATE.match(timestr):
             return abstime
         elif match := cls.RE_TIME.match(timestr):
-            if minutes := match.group('minutes'):
+            if hours := match.group('hours'):
+                return abstime + datetime.timedelta(hours=int(hours))
+            elif minutes := match.group('minutes'):
                 return abstime + datetime.timedelta(minutes=int(minutes))
             elif abshour := match.group('abshour'):
                 absminute = match.group('absminute')
