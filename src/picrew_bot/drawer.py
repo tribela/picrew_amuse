@@ -52,8 +52,8 @@ def generate_images(attachments: list[tuple[str, MediaAttachment]]):
             continue
         image = image.resize((CELL_SIZE, CELL_SIZE))
 
-        question_canvas.paste(image, (x, y))
-        answer_canvas.paste(image, (x, y))
+        question_canvas.paste(image, (x, y), image)
+        answer_canvas.paste(image, (x, y), image)
 
         number_text_opts = {
             'xy': (x + CELL_SIZE / 2, y - CELL_GAP / 2),
