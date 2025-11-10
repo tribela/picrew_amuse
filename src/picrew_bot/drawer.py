@@ -50,8 +50,15 @@ def generate_images(attachments: list[tuple[str, MediaAttachment]]):
         image = download_image(attachment)
         if not image:
             continue
+
+        # Convert to RGBA to handle transparency properly
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+
         image = image.resize((CELL_SIZE, CELL_SIZE))
 
+
+        # Use alpha channel as mask for transparency
         question_canvas.paste(image, (x, y), image)
         answer_canvas.paste(image, (x, y), image)
 
